@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
 
 interface Image {
   id: number;
@@ -14,6 +22,7 @@ const ImageGallery = () => {
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -74,13 +83,38 @@ const ImageGallery = () => {
                 </p>
                 <p className="text-sm mb-4">Ai Gen: {image.analysis}</p>
                 <button
-                  onClick={() => deleteImage(image.id, image.file_path)}
+                  // onClick={() => deleteImage(image.id, image.file_path)}
+                  onClick={() => setShowModal(true)}
                   className="text-red-600 hover:text-red-800 flex items-center"
                 >
                   <Trash2 size={16} className="mr-1" />
                   Delete
                 </button>
               </div>
+              <Dialog open={showModal} onOpenChange={setShowModal}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Are you sure?</DialogTitle>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      onClick={() => {
+                        deleteImage(image.id, image.file_path);
+                        setShowModal(false);
+                      }}
+                      className="bg-red-400 rounded-full"
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      onClick={() => setShowModal(false)}
+                      className="bg-amber-400 rounded-full"
+                    >
+                      Close
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           ))}
         </div>

@@ -51,7 +51,9 @@ const ImageUploader = () => {
       if (insertError) throw insertError;
 
       setFile(null);
-      alert("Image uploaded and analyzed successfully!");
+      alert(
+        "Image uploaded and analyzed successfully! check your image gallery"
+      );
     } catch (error) {
       setError("Error uploading image");
       console.error(error);

@@ -1,28 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { supabase } from "../supabase";
 import { Upload } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { analyzeImage } from "@/services/ImageAnalyze";
 
 const ImageUploader = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [bucketExists, setBucketExists] = useState(true);
-
-  useEffect(() => {
-    checkBucketExists();
-  }, []);
-
-  const checkBucketExists = async () => {
-    try {
-      const { error } = await supabase.storage.getBucket("images");
-      console.log(error?.message);
-      if (error && error.message.includes("Bucket not found")) {
-        // setBucketExists(false);
-        console.log("Bucket not found");
-      }
-    } catch (error) {
-      console.error("Error checking bucket:", error);
-    }
-  };
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -31,20 +17,12 @@ const ImageUploader = () => {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file || !user) return;
 
     setUploading(true);
+    setError(null);
+
     try {
-      if (!bucketExists) {
-        await supabase.storage.createBucket("images", { public: false });
-        setBucketExists(true);
-      }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
@@ -55,27 +33,33 @@ const ImageUploader = () => {
 
       if (uploadError) throw uploadError;
 
-      alert("Image uploaded successfully!");
+      const url = supabase.storage.from("images").getPublicUrl(filePath);
+
+      // const {
+      //   data: { publicUrl },
+      // } = supabase.storage.from("images").getPublicUrl(filePath);
+
+      const analysis = await analyzeImage(url.data.publicUrl);
+      console.log(analysis);
+
+      const { error: insertError } = await supabase.from("images").insert({
+        user_id: user.id,
+        file_path: filePath,
+        analysis: analysis || "",
+      });
+
+      if (insertError) throw insertError;
+
       setFile(null);
+      alert("Image uploaded and analyzed successfully!");
     } catch (error) {
-      console.error("Error uploading image:", error);
-      alert("Error uploading image. Please try again.");
+      setError("Error uploading image");
+      console.error(error);
     } finally {
       setUploading(false);
     }
   };
-
-  if (!bucketExists) {
-    return (
-      <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-semibold mb-4">Storage Not Configured</h2>
-        <p className="text-red-500">
-          The storage bucket has not been set up. Please contact the
-          administrator.
-        </p>
-      </div>
-    );
-  }
+  console.log(error);
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">

@@ -1,69 +1,90 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import { Trash2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface Image {
-  name: string;
-  url: string;
+  id: number;
+  file_path: string;
+  analysis: string;
+  uploaded_at: string;
 }
 
 const ImageGallery = () => {
   const [images, setImages] = useState<Image[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    fetchImages();
-  }, []);
+    if (user) {
+      fetchImages();
+    }
+  }, [user]);
 
   const fetchImages = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabase
         .from("images")
-        .list(user.id);
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
-
-      const imageUrls = await Promise.all(
-        data.map(async (file) => {
-          const {
-            data: { publicUrl },
-          } = supabase.storage
-            .from("images")
-            .getPublicUrl(`${user.id}/${file.name}`);
-          return { name: file.name, url: publicUrl };
-        })
-      );
-
-      setImages(imageUrls);
+      setImages(data || []);
     } catch (error) {
       console.error("Error fetching images:", error);
-      alert("Error fetching images. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const deleteImage = async (id: number, filePath: string) => {
+    try {
+      await supabase.storage.from("images").remove([filePath]);
+      await supabase.from("images").delete().eq("id", id);
+      setImages(images.filter((img) => img.id !== id));
+    } catch (error) {
+      console.error("Error deleting image:", error);
     }
   };
 
   return (
-    <div className="container mx-auto px-4">
-      <h2 className="text-2xl font-semibold mb-4">Image Gallery</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {images.map((image) => (
-          <div
-            key={image.name}
-            className="bg-white rounded-lg shadow-md overflow-hidden"
-          >
-            <img
-              src={image.url}
-              alt={image.name}
-              className="w-full h-48 object-cover"
-            />
-            <div className="p-4">
-              <p className="text-sm text-gray-600 truncate">{image.name}</p>
+    <div className="container mx-auto px-4 py-8">
+      <h2 className="text-2xl font-bold mb-6">Your Images</h2>
+      {loading ? <p>Loading...</p> : null}
+      {images.length === 0 ? (
+        <p>No images uploaded yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {images.map((image) => (
+            <div
+              key={image.id}
+              className="bg-white rounded-lg shadow-md overflow-hidden"
+            >
+              <img
+                src={
+                  supabase.storage.from("images").getPublicUrl(image.file_path)
+                    .data.publicUrl
+                }
+                alt="Uploaded"
+                className="w-full h-48 object-cover"
+              />
+              <div className="p-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Uploaded on {new Date(image.uploaded_at).toLocaleDateString()}
+                </p>
+                <p className="text-sm mb-4">Ai Gen: {image.analysis}</p>
+                <button
+                  onClick={() => deleteImage(image.id, image.file_path)}
+                  className="text-red-600 hover:text-red-800 flex items-center"
+                >
+                  <Trash2 size={16} className="mr-1" />
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
